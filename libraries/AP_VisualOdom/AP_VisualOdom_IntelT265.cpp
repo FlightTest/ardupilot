@@ -129,13 +129,13 @@ void AP_VisualOdom_IntelT265::rotate_attitude(Quaternion &attitude) const
 // use sensor provided attitude to calculate rotation to align sensor with AHRS/EKF attitude
 bool AP_VisualOdom_IntelT265::align_sensor_to_vehicle(const Vector3f &position, const Quaternion &attitude)
 {
-    // do not align to ahrs if it is using us as its yaw source
-    if (AP::ahrs().is_ext_nav_used_for_yaw()) {
+    // do not align to ahrs if we are its yaw source
+    if (AP::ahrs().using_extnav_for_yaw()) {
         return false;
     }
 
     // do not align until ahrs yaw initialised
-    if (!AP::ahrs().initialised() || !AP::ahrs().yaw_initialised()) {
+    if (!AP::ahrs().initialised() || !AP::ahrs().dcm_yaw_initialised()) {
         return false;
     }
 
@@ -237,18 +237,16 @@ bool AP_VisualOdom_IntelT265::pre_arm_check(char *failure_msg, uint8_t failure_m
         return false;
     }
 
-    // get angular difference between AHRS and camera attitude
-    Vector3f angle_diff;
-    _attitude_last.angular_difference(ahrs_quat).to_axis_angle(angle_diff);
-
     // check if roll and pitch is different by > 10deg (using NED so cannot determine whether roll or pitch specifically)
-    const float rp_diff_deg = degrees(safe_sqrt(sq(angle_diff.x)+sq(angle_diff.y)));
+    const float rp_diff_deg = degrees(ahrs_quat.roll_pitch_difference(_attitude_last));
     if (rp_diff_deg > 10.0f) {
         hal.util->snprintf(failure_msg, failure_msg_len, "roll/pitch diff %4.1f deg (>10)",(double)rp_diff_deg);
         return false;
     }
 
     // check if yaw is different by > 10deg
+    Vector3f angle_diff;
+    ahrs_quat.angular_difference(_attitude_last).to_axis_angle(angle_diff);
     const float yaw_diff_deg = degrees(fabsf(angle_diff.z));
     if (yaw_diff_deg > 10.0f) {
         hal.util->snprintf(failure_msg, failure_msg_len, "yaw diff %4.1f deg (>10)",(double)yaw_diff_deg);

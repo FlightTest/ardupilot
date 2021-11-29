@@ -116,6 +116,7 @@ void Sub::auto_wp_run()
         motors.set_desired_spool_state(AP_Motors::DesiredSpoolState::GROUND_IDLE);
         attitude_control.set_throttle_out(0,true,g.throttle_filt);
         attitude_control.relax_attitude_controllers();
+        wp_nav.wp_and_spline_init();                                                // Reset xy target
         return;
     }
 
@@ -205,7 +206,7 @@ void Sub::auto_circle_movetoedge_start(const Location &circle_center, float radi
         }
 
         // if we are outside the circle, point at the edge, otherwise hold yaw
-        const Vector3f &circle_center_neu = circle_nav.get_center();
+        const Vector3p &circle_center_neu = circle_nav.get_center();
         const Vector3f &curr_pos = inertial_nav.get_position();
         float dist_to_center = norm(circle_center_neu.x - curr_pos.x, circle_center_neu.y - curr_pos.y);
         if (dist_to_center > circle_nav.get_radius() && dist_to_center > 500) {
@@ -307,6 +308,7 @@ void Sub::auto_loiter_run()
         attitude_control.set_throttle_out(0,true,g.throttle_filt);
         attitude_control.relax_attitude_controllers();
 
+        wp_nav.wp_and_spline_init();                                                // Reset xy target
         return;
     }
 
@@ -572,6 +574,7 @@ bool Sub::auto_terrain_recover_start()
 
     // initialize vertical maximum speeds and acceleration
     pos_control.set_max_speed_accel_z(wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up(), wp_nav.get_accel_z());
+    pos_control.set_correction_speed_accel_z(wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up(), wp_nav.get_accel_z());
 
     gcs().send_text(MAV_SEVERITY_WARNING, "Attempting auto failsafe recovery");
     return true;
@@ -590,6 +593,9 @@ void Sub::auto_terrain_recover_run()
         motors.set_desired_spool_state(AP_Motors::DesiredSpoolState::GROUND_IDLE);
         attitude_control.set_throttle_out(0,true,g.throttle_filt);
         attitude_control.relax_attitude_controllers();
+
+        loiter_nav.init_target();                                                   // Reset xy target
+        pos_control.relax_z_controller(motors.get_throttle_hover());                // Reset z axis controller
         return;
     }
 
@@ -661,7 +667,7 @@ void Sub::auto_terrain_recover_run()
 
     /////////////////////
     // update z target //
-    pos_control.set_pos_target_z_from_climb_rate_cm(target_climb_rate, true);
+    pos_control.set_pos_target_z_from_climb_rate_cm(target_climb_rate);
     pos_control.update_z_controller();
 
     ////////////////////////////

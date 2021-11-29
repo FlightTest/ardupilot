@@ -4,17 +4,12 @@
  * Init and run calls for guided flight mode
  */
 
-#ifndef GUIDED_LOOK_AT_TARGET_MIN_DISTANCE_CM
-# define GUIDED_LOOK_AT_TARGET_MIN_DISTANCE_CM     500     // point nose at target if it is more than 5m away
-#endif
-
 #define GUIDED_POSVEL_TIMEOUT_MS    3000    // guided mode's position-velocity controller times out after 3seconds with no new updates
 #define GUIDED_ATTITUDE_TIMEOUT_MS  1000    // guided mode's attitude controller times out after 1 second with no new updates
 
-static Vector3f posvel_pos_target_cm;
+static Vector3p posvel_pos_target_cm;
 static Vector3f posvel_vel_target_cms;
-static uint32_t posvel_update_time_ms;
-static uint32_t vel_update_time_ms;
+static uint32_t update_time_ms;
 
 struct {
     uint32_t update_time_ms;
@@ -75,6 +70,7 @@ void Sub::guided_vel_control_start()
 
     // initialize vertical maximum speeds and acceleration
     pos_control.set_max_speed_accel_z(-get_pilot_speed_dn(), g.pilot_speed_up, g.pilot_accel_z);
+    pos_control.set_correction_speed_accel_z(-get_pilot_speed_dn(), g.pilot_speed_up, g.pilot_accel_z);
 
     // initialise velocity controller
     pos_control.init_z_controller();
@@ -89,6 +85,7 @@ void Sub::guided_posvel_control_start()
 
     // set vertical speed and acceleration
     pos_control.set_max_speed_accel_z(wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up(), wp_nav.get_accel_z());
+    pos_control.set_correction_speed_accel_z(wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up(), wp_nav.get_accel_z());
 
     // initialise velocity controller
     pos_control.init_z_controller();
@@ -106,6 +103,7 @@ void Sub::guided_angle_control_start()
 
     // set vertical speed and acceleration
     pos_control.set_max_speed_accel_z(wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up(), wp_nav.get_accel_z());
+    pos_control.set_correction_speed_accel_z(wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up(), wp_nav.get_accel_z());
 
     // initialise velocity controller
     pos_control.init_z_controller();
@@ -189,7 +187,7 @@ void Sub::guided_set_velocity(const Vector3f& velocity)
         guided_vel_control_start();
     }
 
-    vel_update_time_ms = AP_HAL::millis();
+    update_time_ms = AP_HAL::millis();
 
     // set position controller velocity target
     pos_control.set_vel_desired_cms(velocity);
@@ -213,12 +211,14 @@ bool Sub::guided_set_destination_posvel(const Vector3f& destination, const Vecto
     }
 #endif
 
-    posvel_update_time_ms = AP_HAL::millis();
-    posvel_pos_target_cm = destination;
+    update_time_ms = AP_HAL::millis();
+    posvel_pos_target_cm = destination.topostype();
     posvel_vel_target_cms = velocity;
 
-    pos_control.input_pos_vel_accel_xy(posvel_pos_target_cm, posvel_vel_target_cms, Vector3f());
-    pos_control.input_pos_vel_accel_z(posvel_pos_target_cm, posvel_vel_target_cms, Vector3f());
+    pos_control.input_pos_vel_accel_xy(posvel_pos_target_cm.xy(), posvel_vel_target_cms.xy(), Vector2f());
+    float dz = posvel_pos_target_cm.z;
+    pos_control.input_pos_vel_accel_z(dz, posvel_vel_target_cms.z, 0);
+    posvel_pos_target_cm.z = dz;
 
     // log target
     Log_Write_GuidedTarget(guided_mode, destination, velocity);
@@ -282,9 +282,7 @@ void Sub::guided_pos_control_run()
         // Sub vehicles do not stabilize roll/pitch/yaw when disarmed
         attitude_control.set_throttle_out(0,true,g.throttle_filt);
         attitude_control.relax_attitude_controllers();
-        // initialise velocity controller
-        pos_control.init_z_controller();
-        pos_control.init_xy_controller();
+        wp_nav.wp_and_spline_init();
         return;
     }
 
@@ -356,7 +354,7 @@ void Sub::guided_vel_control_run()
 
     // set velocity to zero if no updates received for 3 seconds
     uint32_t tnow = AP_HAL::millis();
-    if (tnow - vel_update_time_ms > GUIDED_POSVEL_TIMEOUT_MS && !pos_control.get_vel_desired_cms().is_zero()) {
+    if (tnow - update_time_ms > GUIDED_POSVEL_TIMEOUT_MS && !pos_control.get_vel_desired_cms().is_zero()) {
         pos_control.set_vel_desired_cms(Vector3f(0,0,0));
     }
 
@@ -413,16 +411,18 @@ void Sub::guided_posvel_control_run()
 
     // set velocity to zero if no updates received for 3 seconds
     uint32_t tnow = AP_HAL::millis();
-    if (tnow - posvel_update_time_ms > GUIDED_POSVEL_TIMEOUT_MS && !posvel_vel_target_cms.is_zero()) {
+    if (tnow - update_time_ms > GUIDED_POSVEL_TIMEOUT_MS && !posvel_vel_target_cms.is_zero()) {
         posvel_vel_target_cms.zero();
     }
 
     // advance position target using velocity target
-    posvel_pos_target_cm += posvel_vel_target_cms * pos_control.get_dt();
+    posvel_pos_target_cm += (posvel_vel_target_cms * pos_control.get_dt()).topostype();
 
     // send position and velocity targets to position controller
-    pos_control.input_pos_vel_accel_xy(posvel_pos_target_cm, posvel_vel_target_cms, Vector3f());
-    pos_control.input_pos_vel_accel_z(posvel_pos_target_cm, posvel_vel_target_cms, Vector3f());
+    pos_control.input_pos_vel_accel_xy(posvel_pos_target_cm.xy(), posvel_vel_target_cms.xy(), Vector2f());
+    float pz = posvel_pos_target_cm.z;
+    pos_control.input_pos_vel_accel_z(pz, posvel_vel_target_cms.z, 0);
+    posvel_pos_target_cm.z = pz;
 
     // run position controller
     pos_control.update_xy_controller();
@@ -464,7 +464,7 @@ void Sub::guided_angle_control_run()
     float roll_in = guided_angle_state.roll_cd;
     float pitch_in = guided_angle_state.pitch_cd;
     float total_in = norm(roll_in, pitch_in);
-    float angle_max = MIN(attitude_control.get_althold_lean_angle_max(), aparm.angle_max);
+    float angle_max = MIN(attitude_control.get_althold_lean_angle_max_cd(), aparm.angle_max);
     if (total_in > angle_max) {
         float ratio = angle_max / total_in;
         roll_in *= ratio;
@@ -475,7 +475,7 @@ void Sub::guided_angle_control_run()
     float yaw_in = wrap_180_cd(guided_angle_state.yaw_cd);
 
     // constrain climb rate
-    float climb_rate_cms = constrain_float(guided_angle_state.climb_rate_cms, -fabsf(wp_nav.get_default_speed_down()), wp_nav.get_default_speed_up());
+    float climb_rate_cms = constrain_float(guided_angle_state.climb_rate_cms, -wp_nav.get_default_speed_down(), wp_nav.get_default_speed_up());
 
     // check for timeout - set lean angles and climb rate to zero if no updates received for 3 seconds
     uint32_t tnow = AP_HAL::millis();
@@ -492,7 +492,7 @@ void Sub::guided_angle_control_run()
     attitude_control.input_euler_angle_roll_pitch_yaw(roll_in, pitch_in, yaw_in, true);
 
     // call position controller
-    pos_control.set_pos_target_z_from_climb_rate_cm(climb_rate_cms, false);
+    pos_control.set_pos_target_z_from_climb_rate_cm(climb_rate_cms);
     pos_control.update_z_controller();
 }
 

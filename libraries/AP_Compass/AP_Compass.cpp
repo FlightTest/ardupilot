@@ -12,7 +12,6 @@
 #include "AP_Compass_AK8963.h"
 #include "AP_Compass_Backend.h"
 #include "AP_Compass_BMM150.h"
-#include "AP_Compass_HIL.h"
 #include "AP_Compass_HMC5843.h"
 #include "AP_Compass_IST8308.h"
 #include "AP_Compass_IST8310.h"
@@ -157,14 +156,14 @@ const AP_Param::GroupInfo Compass::var_info[] = {
 
     // @Param: ORIENT
     // @DisplayName: Compass orientation
-    // @Description: The orientation of the first external compass relative to the vehicle frame. This value will be ignored unless this compass is set as an external compass. When set correctly in the northern hemisphere, pointing the nose and right side down should increase the MagX and MagY values respectively. Rolling the vehicle upside down should decrease the MagZ value. For southern hemisphere, switch increase and decrease. NOTE: For internal compasses, AHRS_ORIENT is used.
-    // @Values: 0:None,1:Yaw45,2:Yaw90,3:Yaw135,4:Yaw180,5:Yaw225,6:Yaw270,7:Yaw315,8:Roll180,9:Roll180Yaw45,10:Roll180Yaw90,11:Roll180Yaw135,12:Pitch180,13:Roll180Yaw225,14:Roll180Yaw270,15:Roll180Yaw315,16:Roll90,17:Roll90Yaw45,18:Roll90Yaw90,19:Roll90Yaw135,20:Roll270,21:Roll270Yaw45,22:Roll270Yaw90,23:Roll270Yaw135,24:Pitch90,25:Pitch270,26:Pitch180Yaw90,27:Pitch180Yaw270,28:Roll90Pitch90,29:Roll180Pitch90,30:Roll270Pitch90,31:Roll90Pitch180,32:Roll270Pitch180,33:Roll90Pitch270,34:Roll180Pitch270,35:Roll270Pitch270,36:Roll90Pitch180Yaw90,37:Roll90Yaw270,38:Yaw293Pitch68Roll180,39:Pitch315,40:Roll90Pitch315,100:Custom
+    // @Description: The orientation of the first external compass relative to the vehicle frame. This value will be ignored unless this compass is set as an external compass. When set correctly in the northern hemisphere, pointing the nose and right side down should increase the MagX and MagY values respectively. Rolling the vehicle upside down should decrease the MagZ value. For southern hemisphere, switch increase and decrease. NOTE: For internal compasses, AHRS_ORIENT is used. The label for each option is specified in the order of rotations for that orientation.
+    // @Values: 0:None,1:Yaw45,2:Yaw90,3:Yaw135,4:Yaw180,5:Yaw225,6:Yaw270,7:Yaw315,8:Roll180,9:Yaw45Roll180,10:Yaw90Roll180,11:Yaw135Roll180,12:Pitch180,13:Yaw225Roll180,14:Yaw270Roll180,15:Yaw315Roll180,16:Roll90,17:Yaw45Roll90,18:Yaw90Roll90,19:Yaw135Roll90,20:Roll270,21:Yaw45Roll270,22:Yaw90Roll270,23:Yaw135Roll270,24:Pitch90,25:Pitch270,26:Yaw90Pitch180,27:Yaw270Pitch180,28:Pitch90Roll90,29:Pitch90Roll180,30:Pitch90Roll270,31:Pitch180Roll90,32:Pitch180Roll270,33:Pitch270Roll90,34:Pitch270Roll180,35:Pitch270Roll270,36:Yaw90Pitch180Roll90,37:Yaw270Roll90,38:Yaw293Pitch68Roll180,39:Pitch315,40:Pitch315Roll90,42:Roll45,43:Roll315,100:Custom
     // @User: Advanced
     AP_GROUPINFO("ORIENT", 8, Compass, _state._priv_instance[0].orientation, ROTATION_NONE),
 
     // @Param: EXTERNAL
     // @DisplayName: Compass is attached via an external cable
-    // @Description: Configure compass so it is attached externally. This is auto-detected on PX4 and Pixhawk. Set to 1 if the compass is externally connected. When externally connected the COMPASS_ORIENT option operates independently of the AHRS_ORIENTATION board orientation option. If set to 0 or 1 then auto-detection by bus connection can override the value. If set to 2 then auto-detection will be disabled.
+    // @Description: Configure compass so it is attached externally. This is auto-detected on most boards. Set to 1 if the compass is externally connected. When externally connected the COMPASS_ORIENT option operates independently of the AHRS_ORIENTATION board orientation option. If set to 0 or 1 then auto-detection by bus connection can override the value. If set to 2 then auto-detection will be disabled.
     // @Values: 0:Internal,1:External,2:ForcedExternal
     // @User: Advanced
     AP_GROUPINFO("EXTERNAL", 9, Compass, _state._priv_instance[0].external, 0),
@@ -318,13 +317,13 @@ const AP_Param::GroupInfo Compass::var_info[] = {
     // @Param: ORIENT2
     // @DisplayName: Compass2 orientation
     // @Description: The orientation of a second external compass relative to the vehicle frame. This value will be ignored unless this compass is set as an external compass. When set correctly in the northern hemisphere, pointing the nose and right side down should increase the MagX and MagY values respectively. Rolling the vehicle upside down should decrease the MagZ value. For southern hemisphere, switch increase and decrease. NOTE: For internal compasses, AHRS_ORIENT is used.
-    // @Values: 0:None,1:Yaw45,2:Yaw90,3:Yaw135,4:Yaw180,5:Yaw225,6:Yaw270,7:Yaw315,8:Roll180,9:Roll180Yaw45,10:Roll180Yaw90,11:Roll180Yaw135,12:Pitch180,13:Roll180Yaw225,14:Roll180Yaw270,15:Roll180Yaw315,16:Roll90,17:Roll90Yaw45,18:Roll90Yaw90,19:Roll90Yaw135,20:Roll270,21:Roll270Yaw45,22:Roll270Yaw90,23:Roll270Yaw135,24:Pitch90,25:Pitch270,26:Pitch180Yaw90,27:Pitch180Yaw270,28:Roll90Pitch90,29:Roll180Pitch90,30:Roll270Pitch90,31:Roll90Pitch180,32:Roll270Pitch180,33:Roll90Pitch270,34:Roll180Pitch270,35:Roll270Pitch270,36:Roll90Pitch180Yaw90,37:Roll90Yaw270,38:Yaw293Pitch68Roll180,39:Pitch315,40:Roll90Pitch315,100:Custom
+    // @Values: 0:None,1:Yaw45,2:Yaw90,3:Yaw135,4:Yaw180,5:Yaw225,6:Yaw270,7:Yaw315,8:Roll180,9:Roll180Yaw45,10:Roll180Yaw90,11:Roll180Yaw135,12:Pitch180,13:Roll180Yaw225,14:Roll180Yaw270,15:Roll180Yaw315,16:Roll90,17:Roll90Yaw45,18:Roll90Yaw90,19:Roll90Yaw135,20:Roll270,21:Roll270Yaw45,22:Roll270Yaw90,23:Roll270Yaw135,24:Pitch90,25:Pitch270,26:Pitch180Yaw90,27:Pitch180Yaw270,28:Roll90Pitch90,29:Roll180Pitch90,30:Roll270Pitch90,31:Roll90Pitch180,32:Roll270Pitch180,33:Roll90Pitch270,34:Roll180Pitch270,35:Roll270Pitch270,36:Roll90Pitch180Yaw90,37:Roll90Yaw270,38:Yaw293Pitch68Roll180,39:Pitch315,40:Roll90Pitch315,42:Roll45,43:Roll315,100:Custom
     // @User: Advanced
     AP_GROUPINFO("ORIENT2", 19, Compass, _state._priv_instance[1].orientation, ROTATION_NONE),
 
     // @Param: EXTERN2
     // @DisplayName: Compass2 is attached via an external cable
-    // @Description: Configure second compass so it is attached externally. This is auto-detected on PX4 and Pixhawk. If set to 0 or 1 then auto-detection by bus connection can override the value. If set to 2 then auto-detection will be disabled.
+    // @Description: Configure second compass so it is attached externally. This is auto-detected on most boards. If set to 0 or 1 then auto-detection by bus connection can override the value. If set to 2 then auto-detection will be disabled.
     // @Values: 0:Internal,1:External,2:ForcedExternal
     // @User: Advanced
     AP_GROUPINFO("EXTERN2",20, Compass, _state._priv_instance[1].external, 0),
@@ -341,13 +340,13 @@ const AP_Param::GroupInfo Compass::var_info[] = {
     // @Param: ORIENT3
     // @DisplayName: Compass3 orientation
     // @Description: The orientation of a third external compass relative to the vehicle frame. This value will be ignored unless this compass is set as an external compass. When set correctly in the northern hemisphere, pointing the nose and right side down should increase the MagX and MagY values respectively. Rolling the vehicle upside down should decrease the MagZ value. For southern hemisphere, switch increase and decrease. NOTE: For internal compasses, AHRS_ORIENT is used.
-    // @Values: 0:None,1:Yaw45,2:Yaw90,3:Yaw135,4:Yaw180,5:Yaw225,6:Yaw270,7:Yaw315,8:Roll180,9:Roll180Yaw45,10:Roll180Yaw90,11:Roll180Yaw135,12:Pitch180,13:Roll180Yaw225,14:Roll180Yaw270,15:Roll180Yaw315,16:Roll90,17:Roll90Yaw45,18:Roll90Yaw90,19:Roll90Yaw135,20:Roll270,21:Roll270Yaw45,22:Roll270Yaw90,23:Roll270Yaw135,24:Pitch90,25:Pitch270,26:Pitch180Yaw90,27:Pitch180Yaw270,28:Roll90Pitch90,29:Roll180Pitch90,30:Roll270Pitch90,31:Roll90Pitch180,32:Roll270Pitch180,33:Roll90Pitch270,34:Roll180Pitch270,35:Roll270Pitch270,36:Roll90Pitch180Yaw90,37:Roll90Yaw270,38:Yaw293Pitch68Roll180,39:Pitch315,40:Roll90Pitch315,100:Custom
+    // @Values: 0:None,1:Yaw45,2:Yaw90,3:Yaw135,4:Yaw180,5:Yaw225,6:Yaw270,7:Yaw315,8:Roll180,9:Roll180Yaw45,10:Roll180Yaw90,11:Roll180Yaw135,12:Pitch180,13:Roll180Yaw225,14:Roll180Yaw270,15:Roll180Yaw315,16:Roll90,17:Roll90Yaw45,18:Roll90Yaw90,19:Roll90Yaw135,20:Roll270,21:Roll270Yaw45,22:Roll270Yaw90,23:Roll270Yaw135,24:Pitch90,25:Pitch270,26:Pitch180Yaw90,27:Pitch180Yaw270,28:Roll90Pitch90,29:Roll180Pitch90,30:Roll270Pitch90,31:Roll90Pitch180,32:Roll270Pitch180,33:Roll90Pitch270,34:Roll180Pitch270,35:Roll270Pitch270,36:Roll90Pitch180Yaw90,37:Roll90Yaw270,38:Yaw293Pitch68Roll180,39:Pitch315,40:Roll90Pitch315,42:Roll45,43:Roll315,100:Custom
     // @User: Advanced
     AP_GROUPINFO("ORIENT3", 22, Compass, _state._priv_instance[2].orientation, ROTATION_NONE),
 
     // @Param: EXTERN3
     // @DisplayName: Compass3 is attached via an external cable
-    // @Description: Configure third compass so it is attached externally. This is auto-detected on PX4 and Pixhawk. If set to 0 or 1 then auto-detection by bus connection can override the value. If set to 2 then auto-detection will be disabled.
+    // @Description: Configure third compass so it is attached externally. This is auto-detected on most boards. If set to 0 or 1 then auto-detection by bus connection can override the value. If set to 2 then auto-detection will be disabled.
     // @Values: 0:Internal,1:External,2:ForcedExternal
     // @User: Advanced
     AP_GROUPINFO("EXTERN3",23, Compass, _state._priv_instance[2].external, 0),
@@ -513,7 +512,7 @@ const AP_Param::GroupInfo Compass::var_info[] = {
     // @Param: AUTO_ROT
     // @DisplayName: Automatically check orientation
     // @Description: When enabled this will automatically check the orientation of compasses on successful completion of compass calibration. If set to 2 then external compasses will have their orientation automatically corrected.
-    // @Values: 0:Disabled,1:CheckOnly,2:CheckAndFix
+    // @Values: 0:Disabled,1:CheckOnly,2:CheckAndFix,3:use same tolerance to auto rotate 45 deg rotations
     AP_GROUPINFO("AUTO_ROT", 35, Compass, _rotate_auto, HAL_COMPASS_AUTO_ROT_DEFAULT),
 #endif
 
@@ -546,6 +545,7 @@ const AP_Param::GroupInfo Compass::var_info[] = {
     // @DisplayName: Enable Compass
     // @Description: Setting this to Enabled(1) will enable the compass. Setting this to Disabled(0) will disable the compass. Note that this is separate from COMPASS_USE. This will enable the low level senor, and will enable logging of magnetometer data. To use the compass for navigation you must also set COMPASS_USE to 1.
     // @User: Standard
+    // @RebootRequired: True
     // @Values: 0:Disabled,1:Enabled
     AP_GROUPINFO("ENABLE", 39, Compass, _enabled, 1),
 
@@ -682,7 +682,7 @@ Compass::Compass(void)
 //
 void Compass::init()
 {
-    if (!AP::compass().enabled()) {
+    if (!_enabled) {
         return;
     }
 
@@ -786,7 +786,8 @@ void Compass::init()
     }
 
 #ifndef HAL_BUILD_AP_PERIPH
-    AP::ahrs().set_compass(this);
+    // updating the AHRS orientation updates our own orientation:
+    AP::ahrs().update_orientation();
 #endif
 
     init_done = true;
@@ -1068,11 +1069,17 @@ void Compass::_probe_external_i2c_compasses(void)
         ADD_BACKEND(DRIVER_ICM20948, AP_Compass_AK09916::probe_ICM20948(GET_I2C_DEVICE(i, HAL_COMPASS_AK09916_I2C_ADDR),
                     GET_I2C_DEVICE(i, HAL_COMPASS_ICM20948_I2C_ADDR),
                     true, ROTATION_PITCH_180_YAW_90));
+        ADD_BACKEND(DRIVER_ICM20948, AP_Compass_AK09916::probe_ICM20948(GET_I2C_DEVICE(i, HAL_COMPASS_AK09916_I2C_ADDR),
+                    GET_I2C_DEVICE(i, HAL_COMPASS_ICM20948_I2C_ADDR2),
+                    true, ROTATION_PITCH_180_YAW_90));
     }
 
     FOREACH_I2C_INTERNAL(i) {
         ADD_BACKEND(DRIVER_ICM20948, AP_Compass_AK09916::probe_ICM20948(GET_I2C_DEVICE(i, HAL_COMPASS_AK09916_I2C_ADDR),
                     GET_I2C_DEVICE(i, HAL_COMPASS_ICM20948_I2C_ADDR),
+                    all_external, ROTATION_PITCH_180_YAW_90));
+        ADD_BACKEND(DRIVER_ICM20948, AP_Compass_AK09916::probe_ICM20948(GET_I2C_DEVICE(i, HAL_COMPASS_AK09916_I2C_ADDR),
+                    GET_I2C_DEVICE(i, HAL_COMPASS_ICM20948_I2C_ADDR2),
                     all_external, ROTATION_PITCH_180_YAW_90));
     }
 #endif // HAL_BUILD_AP_PERIPH
@@ -1154,6 +1161,18 @@ void Compass::_probe_external_i2c_compasses(void)
     }
 #endif
 
+#if !defined(HAL_DISABLE_I2C_MAGS_BY_DEFAULT) || defined(HAL_USE_I2C_MAG_MMC3416)
+    // external i2c bus
+    FOREACH_I2C_EXTERNAL(i) {
+        ADD_BACKEND(DRIVER_MMC3416, AP_Compass_MMC3416::probe(GET_I2C_DEVICE(i, HAL_COMPASS_MMC3416_I2C_ADDR),
+                    true, ROTATION_NONE));
+    }
+    FOREACH_I2C_INTERNAL(i) {
+        ADD_BACKEND(DRIVER_MMC3416, AP_Compass_MMC3416::probe(GET_I2C_DEVICE(i, HAL_COMPASS_MMC3416_I2C_ADDR),
+                    all_external, ROTATION_NONE));
+    }
+#endif
+
 #if !defined(HAL_DISABLE_I2C_MAGS_BY_DEFAULT) || defined(HAL_USE_I2C_MAG_RM3100)
 #ifdef HAL_COMPASS_RM3100_I2C_ADDR
     const uint8_t rm3100_addresses[] = { HAL_COMPASS_RM3100_I2C_ADDR };
@@ -1194,15 +1213,9 @@ void Compass::_probe_external_i2c_compasses(void)
  */
 void Compass::_detect_backends(void)
 {
-#ifndef HAL_BUILD_AP_PERIPH
-    if (_hil_mode) {
-        _add_backend(AP_Compass_HIL::detect());
-        return;
-    }
-#endif
-
 #if HAL_EXTERNAL_AHRS_ENABLED
-    if (int8_t serial_port = AP::externalAHRS().get_port() >= 0) {
+    const int8_t serial_port = AP::externalAHRS().get_port();
+    if (serial_port >= 0) {
         ADD_BACKEND(DRIVER_SERIAL, new AP_Compass_ExternalAHRS(serial_port));
     }
 #endif
@@ -1235,8 +1248,6 @@ void Compass::_detect_backends(void)
 #if defined(HAL_MAG_PROBE_LIST)
     // driver probes defined by COMPASS lines in hwdef.dat
     HAL_MAG_PROBE_LIST;
-#elif HAL_COMPASS_DEFAULT == HAL_COMPASS_HIL
-    ADD_BACKEND(DRIVER_SITL, AP_Compass_HIL::detect());
 #elif AP_FEATURE_BOARD_DETECT
     switch (AP_BoardConfig::get_board_type()) {
     case AP_BoardConfig::PX4_BOARD_PX4V1:
@@ -1440,12 +1451,14 @@ bool Compass::is_replacement_mag(uint32_t devid) {
         return false;
     }
 
+#if COMPASS_MAX_UNREG_DEV > 0
     // Check that its not an unused additional mag
     for (uint8_t i = 0; i<COMPASS_MAX_UNREG_DEV; i++) {
         if (_previously_unreg_mag[i] == devid) {
             return false;
         }
     }
+#endif
 
     // Check that its not previously setup mag
     for (StateIndex i(0); i<COMPASS_MAX_INSTANCES; i++) {
@@ -1465,12 +1478,14 @@ void Compass::remove_unreg_dev_id(uint32_t devid)
         return;
     }
 
+#if COMPASS_MAX_UNREG_DEV > 0
     for (uint8_t i = 0; i<COMPASS_MAX_UNREG_DEV; i++) {
         if ((uint32_t)extra_dev_id[i] == devid) {
             extra_dev_id[i].set_and_save(0);
             return;
         }
     }
+#endif
 #endif
 }
 
@@ -1486,7 +1501,7 @@ void Compass::_reset_compass_id()
         }
         if (!_get_state(i).registered) {
             _priority_did_stored_list[i].set_and_save(0);
-            gcs().send_text(MAV_SEVERITY_ALERT, "Mag: Compass #%d with DEVID %lu removed", uint8_t(i), (unsigned long)_priority_did_list[i]);
+            GCS_SEND_TEXT(MAV_SEVERITY_ALERT, "Mag: Compass #%d with DEVID %lu removed", uint8_t(i), (unsigned long)_priority_did_list[i]);
         }
     }
 
@@ -1506,6 +1521,10 @@ void
 Compass::_detect_runtime(void)
 {
 #if HAL_ENABLE_LIBUAVCAN_DRIVERS
+    if (!available()) {
+        return;
+    }
+
     //Don't try to add device while armed
     if (hal.util->get_soft_armed()) {
         return;
@@ -1531,6 +1550,10 @@ Compass::_detect_runtime(void)
 bool
 Compass::read(void)
 {
+    if (!available()) {
+        return false;
+    }
+
 #ifndef HAL_BUILD_AP_PERIPH
     if (!_initial_location_set) {
         try_set_initial_location();
@@ -1720,6 +1743,9 @@ Compass::use_for_yaw(void) const
 bool
 Compass::use_for_yaw(uint8_t i) const
 {
+    if (!available()) {
+        return false;
+    }
     // when we are doing in-flight compass learning the state
     // estimator must not use the compass. The learning code turns off
     // inflight learning when it has converged
@@ -1854,75 +1880,21 @@ bool Compass::configured(char *failure_msg, uint8_t failure_msg_len)
 
     bool all_configured = true;
     for (uint8_t i=0; i<get_count(); i++) {
-        all_configured = all_configured && (!use_for_yaw(i) || configured(i));
+        if (configured(i)) {
+            continue;
+        }
+        if (!use_for_yaw(i)) {
+            // we're not planning on using this anyway so sure,
+            // whatever, it's configured....
+            continue;
+        }
+        all_configured = false;
+        break;
     }
     if (!all_configured) {
         snprintf(failure_msg, failure_msg_len, "Compass not calibrated");
     }
     return all_configured;
-}
-
-// Update raw magnetometer values from HIL data
-//
-void Compass::setHIL(uint8_t instance, float roll, float pitch, float yaw)
-{
-    Matrix3f R;
-
-    // create a rotation matrix for the given attitude
-    R.from_euler(roll, pitch, yaw);
-
-    if (!is_equal(_hil.last_declination,get_declination())) {
-        _setup_earth_field();
-        _hil.last_declination = get_declination();
-    }
-
-    // convert the earth frame magnetic vector to body frame, and
-    // apply the offsets
-    _hil.field[instance] = R.mul_transpose(_hil.Bearth);
-
-    // apply default board orientation for this compass type. This is
-    // a noop on most boards
-    _hil.field[instance].rotate(MAG_BOARD_ORIENTATION);
-
-    // add user selectable orientation
-    _hil.field[instance].rotate((enum Rotation)_state[StateIndex(0)].orientation.get());
-
-    if (!_state[StateIndex(0)].external) {
-        // and add in AHRS_ORIENTATION setting if not an external compass
-        if (_board_orientation == ROTATION_CUSTOM && _custom_rotation) {
-            _hil.field[instance] = *_custom_rotation * _hil.field[instance];
-        } else {
-            _hil.field[instance].rotate(_board_orientation);
-        }
-    }
-    _hil.healthy[instance] = true;
-}
-
-// Update raw magnetometer values from HIL mag vector
-//
-void Compass::setHIL(uint8_t instance, const Vector3f &mag, uint32_t update_usec)
-{
-    _hil.field[instance] = mag;
-    _hil.healthy[instance] = true;
-    _state[StateIndex(instance)].last_update_usec = update_usec;
-}
-
-const Vector3f& Compass::getHIL(uint8_t instance) const
-{
-    return _hil.field[instance];
-}
-
-// setup _Bearth
-void Compass::_setup_earth_field(void)
-{
-    // assume a earth field strength of 400
-    _hil.Bearth = {400, 0, 0};
-
-    // rotate _Bearth for inclination and declination. -66 degrees
-    // is the inclination in Canberra, Australia
-    Matrix3f R;
-    R.from_euler(0, ToRad(66), get_declination());
-    _hil.Bearth = R * _hil.Bearth;
 }
 
 /*
@@ -1995,6 +1967,9 @@ bool Compass::consistent() const
  */
 bool Compass::have_scale_factor(uint8_t i) const
 {
+    if (!available()) {
+        return false;
+    }
     StateIndex id = _get_state_id(Priority(i));
     if (id >= COMPASS_MAX_INSTANCES ||
         _state[id].scale_factor < COMPASS_MIN_SCALE_FACTOR ||

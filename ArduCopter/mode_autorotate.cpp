@@ -239,6 +239,7 @@ void ModeAutorotate::run()
 
                 // set vertical speed and acceleration limits
                 pos_control->set_max_speed_accel_z(curr_vel_z, pilot_spd_up, fabsf(_target_climb_rate_adjust));
+                pos_control->set_correction_speed_accel_z(curr_vel_z, pilot_spd_up, fabsf(_target_climb_rate_adjust));
 
                 motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
@@ -251,7 +252,7 @@ void ModeAutorotate::run()
             _pitch_target -= _target_pitch_adjust*G_Dt;
         }
         // Set position controller
-        pos_control->set_pos_target_z_from_climb_rate_cm(_desired_v_z, false);
+        pos_control->set_pos_target_z_from_climb_rate_cm(_desired_v_z);
 
         // Update controllers
         pos_control->update_z_controller();
@@ -281,7 +282,7 @@ void ModeAutorotate::run()
             get_pilot_desired_lean_angles(pilot_roll, pilot_pitch, copter.aparm.angle_max, copter.aparm.angle_max);
 
             // Get pilot's desired yaw rate
-            float pilot_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
+            float pilot_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->norm_input_dz());
 
             // Pitch target is calculated in autorotation phase switch above
             attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(pilot_roll, _pitch_target, pilot_yaw_rate);
