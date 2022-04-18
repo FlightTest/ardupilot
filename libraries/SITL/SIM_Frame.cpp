@@ -23,7 +23,10 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
+#define USE_PICOJSON (CONFIG_HAL_BOARD == HAL_BOARD_SITL)
+#if USE_PICOJSON
 #include "picojson.h"
+#endif
 
 using namespace SITL;
 
@@ -319,9 +322,10 @@ float Frame::get_air_density(float alt_amsl) const
     AP_Baro::SimpleAtmosphere(alt_amsl * 0.001f, sigma, delta, theta);
 
     const float air_pressure = SSL_AIR_PRESSURE * delta;
-    return air_pressure / (ISA_GAS_CONSTANT * (C_TO_KELVIN + model.refTempC));
+    return air_pressure / (ISA_GAS_CONSTANT * (C_TO_KELVIN(model.refTempC)));
 }
 
+#if USE_PICOJSON
 /*
   load frame specific parameters from a json file if available
  */
@@ -418,6 +422,7 @@ void Frame::load_frame_params(const char *model_json)
 
     ::printf("Loaded model params from %s\n", model_json);
 }
+#endif
 
 /*
   initialise the frame
@@ -427,11 +432,13 @@ void Frame::init(const char *frame_str, Battery *_battery)
     model = default_model;
     battery = _battery;
 
+#if USE_PICOJSON
     const char *colon = strchr(frame_str, ':');
     size_t slen = strlen(frame_str);
     if (colon != nullptr && slen > 5 && strcmp(&frame_str[slen-5], ".json") == 0) {
         load_frame_params(colon+1);
     }
+#endif
     mass = model.mass;
 
     const float drag_force = model.mass * GRAVITY_MSS * tanf(radians(model.refAngle));
@@ -446,10 +453,10 @@ void Frame::init(const char *frame_str, Battery *_battery)
     if (momentum_drag > drag_force) {
         model.mdrag_coef *= drag_force / momentum_drag;
         areaCd = 0.0;
-        ::printf("Suggested EK3_BCOEF_* = 0, EK3_MCOEF = %.3f\n", (momentum_drag / (model.mass * airspeed_bf)) * sqrtf(1.225f / ref_air_density));
+        ::printf("Suggested EK3_DRAG_BCOEF_* = 0, EK3_DRAG_MCOEF = %.3f\n", (momentum_drag / (model.mass * airspeed_bf)) * sqrtf(1.225f / ref_air_density));
     } else {
         areaCd = (drag_force - momentum_drag) / (0.5f * ref_air_density * sq(model.refSpd));
-        ::printf("Suggested EK3_BCOEF_* = %.3f, EK3_MCOEF = %.3f\n", model.mass / areaCd, (momentum_drag / (model.mass * airspeed_bf)) * sqrtf(1.225f / ref_air_density));
+        ::printf("Suggested EK3_DRAG_BCOEF_* = %.3f, EK3_DRAG_MCOEF = %.3f\n", model.mass / areaCd, (momentum_drag / (model.mass * airspeed_bf)) * sqrtf(1.225f / ref_air_density));
     }
 
     terminal_rotation_rate = model.refRotRate;
@@ -495,7 +502,9 @@ void Frame::init(const char *frame_str, Battery *_battery)
     // setup reasonable defaults for battery
     AP_Param::set_default_by_name("SIM_BATT_VOLTAGE", model.maxVoltage);
     AP_Param::set_default_by_name("SIM_BATT_CAP_AH", model.battCapacityAh);
-    AP_Param::set_default_by_name("BATT_CAPACITY", model.battCapacityAh*1000);
+    if (model.battCapacityAh > 0) {
+        AP_Param::set_default_by_name("BATT_CAPACITY", model.battCapacityAh*1000);
+    }
 }
 
 /*

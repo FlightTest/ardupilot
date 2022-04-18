@@ -20,6 +20,8 @@
 #include "RPM_HarmonicNotch.h"
 #include "RPM_ESC_Telem.h"
 
+#include <AP_Logger/AP_Logger.h>
+
 extern const AP_HAL::HAL& hal;
 
 // table of user settable parameters
@@ -186,6 +188,12 @@ void AP_RPM::update(void)
             drivers[i]->update();
         }
     }
+
+#if HAL_LOGGING_ENABLED
+    if (enabled(0) || enabled(1)) {
+        Log_RPM();
+    }
+#endif
 }
 
 /*
@@ -252,6 +260,24 @@ bool AP_RPM::arming_checks(size_t buflen, char *buffer) const
     }
     return true;
 }
+
+#if HAL_LOGGING_ENABLED
+void AP_RPM::Log_RPM()
+{
+    float rpm1 = -1, rpm2 = -1;
+
+    get_rpm(0, rpm1);
+    get_rpm(1, rpm2);
+
+    const struct log_RPM pkt{
+        LOG_PACKET_HEADER_INIT(LOG_RPM_MSG),
+        time_us     : AP_HAL::micros64(),
+        rpm1        : rpm1,
+        rpm2        : rpm2
+    };
+    AP::logger().WriteBlock(&pkt, sizeof(pkt));
+}
+#endif
 
 // singleton instance
 AP_RPM *AP_RPM::_singleton;

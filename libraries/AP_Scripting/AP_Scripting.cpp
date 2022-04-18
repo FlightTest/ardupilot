@@ -33,8 +33,8 @@
 #endif // !defined(SCRIPTING_STACK_MAX_SIZE)
 
 #if !defined(SCRIPTING_HEAP_SIZE)
-  #if CONFIG_HAL_BOARD == HAL_BOARD_SITL || CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-    #define SCRIPTING_HEAP_SIZE (64 * 1024)
+  #if CONFIG_HAL_BOARD == HAL_BOARD_SITL || CONFIG_HAL_BOARD == HAL_BOARD_LINUX || HAL_MEM_CLASS >= HAL_MEM_CLASS_500
+    #define SCRIPTING_HEAP_SIZE (100 * 1024)
   #else
     #define SCRIPTING_HEAP_SIZE (43 * 1024)
   #endif
@@ -106,6 +106,18 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("USER4", 8, AP_Scripting, _user[3], 0.0),
 
+    // @Param: USER5
+    // @DisplayName: Scripting User Parameter5
+    // @Description: General purpose user variable input for scripts
+    // @User: Standard
+    AP_GROUPINFO("USER5", 10, AP_Scripting, _user[4], 0.0),
+
+    // @Param: USER6
+    // @DisplayName: Scripting User Parameter6
+    // @Description: General purpose user variable input for scripts
+    // @User: Standard
+    AP_GROUPINFO("USER6", 11, AP_Scripting, _user[5], 0.0),
+    
     // @Param: DIR_DISABLE
     // @DisplayName: Directory disable
     // @Description: This will stop scripts being loaded from the given locations
@@ -235,7 +247,7 @@ void AP_Scripting::thread(void) {
             }
             // must be enabled to get this far
             if (cleared || _restart) {
-                gcs().send_text(MAV_SEVERITY_CRITICAL, "Scripting restated");
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "Scripting restarted");
                 break;
             }
             if ((_debug_options.get() & uint8_t(lua_scripts::DebugLevel::NO_SCRIPTS_TO_RUN)) != 0) {

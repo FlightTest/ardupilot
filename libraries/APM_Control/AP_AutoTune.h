@@ -5,8 +5,10 @@
 #include <AP_Param/AP_Param.h>
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <AC_PID/AC_PID.h>
+#include <Filter/ModeFilter.h>
 
-class AP_AutoTune {
+class AP_AutoTune
+{
 public:
     struct ATGains {
         AP_Float tau;
@@ -18,7 +20,8 @@ public:
 
     enum ATType {
         AUTOTUNE_ROLL  = 0,
-        AUTOTUNE_PITCH = 1
+        AUTOTUNE_PITCH = 1,
+        AUTOTUNE_YAW = 2,
     };
 
     struct PACKED log_ATRP {
@@ -52,11 +55,11 @@ public:
 
     // update called whenever autotune mode is active. This is
     // called at the main loop rate
-    void update(AP_Logger::PID_Info &pid_info, float scaler, float angle_err_deg);
+    void update(AP_PIDInfo &pid_info, float scaler, float angle_err_deg);
 
     // are we running?
     bool running;
-    
+
 private:
     // the current gains
     ATGains &current;
@@ -65,7 +68,7 @@ private:
     // what type of autotune is this
     ATType type;
 
-	const AP_Vehicle::FixedWing &aparm;
+    const AP_Vehicle::FixedWing &aparm;
 
     // values to restore if we leave autotune mode
     ATGains restore;
@@ -77,7 +80,8 @@ private:
     // the demanded/achieved state
     enum class ATState {IDLE,
                         DEMAND_POS,
-                        DEMAND_NEG};
+                        DEMAND_NEG
+                       };
     ATState state;
 
     // the demanded/achieved state
@@ -90,7 +94,8 @@ private:
                        RAISE_D,
                        RAISE_P,
                        LOWER_D,
-                       LOWER_P};
+                       LOWER_P
+                      };
     Action action;
 
     // when we entered the current state
@@ -102,6 +107,7 @@ private:
     void save_float_if_changed(AP_Float &v, float value);
     void save_int16_if_changed(AP_Int16 &v, int16_t value);
     void state_change(ATState newstate);
+    const char *axis_string(void) const;
 
     // get gains with PID components
     ATGains get_gains(void);

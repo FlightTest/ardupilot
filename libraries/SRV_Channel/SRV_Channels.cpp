@@ -43,11 +43,17 @@ extern const AP_HAL::HAL& hal;
 SRV_Channel *SRV_Channels::channels;
 SRV_Channels *SRV_Channels::_singleton;
 
-#ifndef HAL_BUILD_AP_PERIPH
+#if AP_VOLZ_ENABLED
 AP_Volz_Protocol *SRV_Channels::volz_ptr;
+#endif
+
+#ifndef HAL_BUILD_AP_PERIPH
 AP_SBusOut *SRV_Channels::sbus_ptr;
+#endif
+
+#if AP_ROBOTISSERVO_ENABLED
 AP_RobotisServo *SRV_Channels::robotis_ptr;
-#endif // HAL_BUILD_AP_PERIPH
+#endif
 
 #if AP_FETTEC_ONEWIRE_ENABLED
 AP_FETtecOneWire *SRV_Channels::fetteconwire_ptr;
@@ -68,6 +74,7 @@ bool SRV_Channels::initialised;
 bool SRV_Channels::emergency_stop;
 Bitmask<SRV_Channel::k_nr_aux_servo_functions> SRV_Channels::function_mask;
 SRV_Channels::srv_function SRV_Channels::functions[SRV_Channel::k_nr_aux_servo_functions];
+SRV_Channels::slew_list *SRV_Channels::_slew;
 
 const AP_Param::GroupInfo SRV_Channels::var_info[] = {
 #if (NUM_SERVO_CHANNELS >= 1)
@@ -183,14 +190,17 @@ const AP_Param::GroupInfo SRV_Channels::var_info[] = {
     // @Units: Hz
     AP_GROUPINFO("_RATE",  18, SRV_Channels, default_rate, 50),
 
-#ifndef HAL_BUILD_AP_PERIPH
+#if AP_VOLZ_ENABLED
     // @Group: _VOLZ_
     // @Path: ../AP_Volz_Protocol/AP_Volz_Protocol.cpp
     AP_SUBGROUPINFO(volz, "_VOLZ_",  19, SRV_Channels, AP_Volz_Protocol),
+#endif
 
+#ifndef HAL_BUILD_AP_PERIPH
     // @Group: _SBUS_
     // @Path: ../AP_SBusOut/AP_SBusOut.cpp
     AP_SUBGROUPINFO(sbus, "_SBUS_",  20, SRV_Channels, AP_SBusOut),
+#endif // HAL_BUILD_AP_PERIPH
 
 #if HAL_SUPPORT_RCOUT_SERIAL
     // @Group: _BLH_
@@ -198,17 +208,17 @@ const AP_Param::GroupInfo SRV_Channels::var_info[] = {
     AP_SUBGROUPINFO(blheli, "_BLH_",  21, SRV_Channels, AP_BLHeli),
 #endif
 
+#if AP_ROBOTISSERVO_ENABLED
     // @Group: _ROB_
     // @Path: ../AP_RobotisServo/AP_RobotisServo.cpp
     AP_SUBGROUPINFO(robotis, "_ROB_",  22, SRV_Channels, AP_RobotisServo),
+#endif
 
 #if AP_FETTEC_ONEWIRE_ENABLED
     // @Group: _FTW_
     // @Path: ../AP_FETtecOneWire/AP_FETtecOneWire.cpp
     AP_SUBGROUPINFO(fetteconwire, "_FTW_",  25, SRV_Channels, AP_FETtecOneWire),
 #endif
-
-#endif // HAL_BUILD_AP_PERIPH
 
     // @Param: _DSHOT_RATE
     // @DisplayName: Servo DShot output rate
@@ -227,7 +237,7 @@ const AP_Param::GroupInfo SRV_Channels::var_info[] = {
     // @Param: _GPIO_MASK
     // @DisplayName: Servo GPIO mask
     // @Description: This sets a bitmask of outputs which will be available as GPIOs. Any auxillary output with either the function set to -1 or with the corresponding bit set in this mask will be available for use as a GPIO pin
-    // @Bitmask: 0: Servo 1, 1: Servo 2, 2: Servo 3, 3: Servo 4, 4: Servo 5, 5: Servo 6, 6: Servo 7, 7: Servo 8, 8: Servo 9, 9: Servo 10, 10: Servo 11, 11: Servo 12, 12: Servo 13, 13: Servo 14, 14: Servo 15, 15: Servo 16
+    // @Bitmask: 0:Servo 1, 1:Servo 2, 2:Servo 3, 3:Servo 4, 4:Servo 5, 5:Servo 6, 6:Servo 7, 7:Servo 8, 8:Servo 9, 9:Servo 10, 10:Servo 11, 11:Servo 12, 12:Servo 13, 13:Servo 14, 14:Servo 15, 15:Servo 16
     // @User: Advanced
     // @RebootRequired: True
     AP_GROUPINFO("_GPIO_MASK",  26, SRV_Channels, gpio_mask, 0),
@@ -255,14 +265,21 @@ SRV_Channels::SRV_Channels(void)
     fetteconwire_ptr = &fetteconwire;
 #endif
 
-#ifndef HAL_BUILD_AP_PERIPH
+#if AP_VOLZ_ENABLED
     volz_ptr = &volz;
+#endif
+
+#ifndef HAL_BUILD_AP_PERIPH
     sbus_ptr = &sbus;
+#endif
+
+#if AP_ROBOTISSERVO_ENABLED
     robotis_ptr = &robotis;
+#endif // AP_ROBOTISSERVO_ENABLED
+
 #if HAL_SUPPORT_RCOUT_SERIAL
     blheli_ptr = &blheli;
 #endif
-#endif // HAL_BUILD_AP_PERIPH
 }
 
 // SRV_Channels initialization
@@ -272,7 +289,9 @@ void SRV_Channels::init(void)
 #if HAL_SUPPORT_RCOUT_SERIAL
     blheli_ptr->init();
 #endif
+#ifndef HAL_BUILD_AP_PERIPH
     hal.rcout->set_dshot_rate(_singleton->dshot_rate, AP::scheduler().get_loop_rate_hz());
+#endif
 }
 
 /*
@@ -302,6 +321,15 @@ void SRV_Channels::setup_failsafe_trim_all_non_motors(void)
  */
 void SRV_Channels::calc_pwm(void)
 {
+    // slew rate limit functions
+    for (slew_list *slew = _slew; slew; slew = slew->next) {
+        if (is_positive(slew->max_change)) {
+            // treat negative or zero slew rate as disabled
+            functions[slew->func].output_scaled = constrain_float(functions[slew->func].output_scaled, slew->last_scaled_output - slew->max_change, slew->last_scaled_output + slew->max_change);
+        }
+        slew->last_scaled_output = functions[slew->func].output_scaled;
+    }
+
     WITH_SEMAPHORE(_singleton->override_counter_sem);
 
     for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
@@ -313,7 +341,9 @@ void SRV_Channels::calc_pwm(void)
             channels[i].set_override(true);
             override_counter[i]--;
         }
-        channels[i].calc_pwm(functions[channels[i].function].output_scaled);
+        if (channels[i].valid_function()) {
+            channels[i].calc_pwm(functions[channels[i].function.get()].output_scaled);
+        }
     }
 }
 
@@ -366,21 +396,25 @@ void SRV_Channels::push()
 {
     hal.rcout->push();
 
-#ifndef HAL_BUILD_AP_PERIPH
+#if AP_VOLZ_ENABLED
     // give volz library a chance to update
     volz_ptr->update();
+#endif
 
+#ifndef HAL_BUILD_AP_PERIPH
     // give sbus library a chance to update
     sbus_ptr->update();
+#endif // HAL_BUILD_AP_PERIPH
 
+#if AP_ROBOTISSERVO_ENABLED
     // give robotis library a chance to update
     robotis_ptr->update();
+#endif
 
 #if HAL_SUPPORT_RCOUT_SERIAL
     // give blheli telemetry a chance to update
     blheli_ptr->update_telemetry();
 #endif
-#endif // HAL_BUILD_AP_PERIPH
 
 #if AP_FETTEC_ONEWIRE_ENABLED
     fetteconwire_ptr->update();
@@ -445,7 +479,7 @@ void SRV_Channels::zero_rc_outputs()
      * undesired/unexpected behavior
      */
     cork();
-    for (uint8_t i=0; i<NUM_RC_CHANNELS; i++) {
+    for (uint8_t i=0; i<NUM_SERVO_CHANNELS; i++) {
         hal.rcout->write(i, 0);
     }
     push();

@@ -163,9 +163,24 @@ bool AP_Arming_Plane::quadplane_checks(bool display_failure)
         ret = false;
     }
 
-    if (((plane.quadplane.options & QuadPlane::OPTION_ONLY_ARM_IN_QMODE_OR_AUTO) != 0) &&
-            !plane.control_mode->is_vtol_mode() && (plane.control_mode != &plane.mode_auto) && (plane.control_mode != &plane.mode_guided)) {
-        check_failed(display_failure,"not in Q mode");
+    if ((plane.quadplane.options & QuadPlane::OPTION_ONLY_ARM_IN_QMODE_OR_AUTO) != 0) {
+        if (!plane.control_mode->is_vtol_mode() && (plane.control_mode != &plane.mode_auto) && (plane.control_mode != &plane.mode_guided)) {
+            check_failed(display_failure,"not in Q mode");
+            ret = false;
+        }
+        if ((plane.control_mode == &plane.mode_auto) && !plane.quadplane.is_vtol_takeoff(plane.mission.get_current_nav_cmd().id)) {
+            check_failed(display_failure,"not in VTOL takeoff");
+            ret = false;
+        }
+    }
+
+    /*
+      Q_ASSIST_SPEED really should be enabled for all quadplanes except tailsitters
+     */
+    if (check_enabled(ARMING_CHECK_PARAMETERS) &&
+        is_zero(plane.quadplane.assist_speed) &&
+        !plane.quadplane.tailsitter.enabled()) {
+        check_failed(display_failure,"Q_ASSIST_SPEED is not set");
         ret = false;
     }
 
@@ -270,12 +285,15 @@ bool AP_Arming_Plane::arm(const AP_Arming::Method method, const bool do_arming_c
 bool AP_Arming_Plane::disarm(const AP_Arming::Method method, bool do_disarm_checks)
 {
     if (do_disarm_checks &&
-        method == AP_Arming::Method::RUDDER) {
-        // don't allow rudder-disarming in flight:
+        (method == AP_Arming::Method::MAVLINK ||
+         method == AP_Arming::Method::RUDDER)) {
         if (plane.is_flying()) {
-            // obviously this could happen in-flight so we can't warn about it
+            // don't allow mavlink or rudder disarm while flying
             return false;
         }
+    }
+    
+    if (do_disarm_checks && method == AP_Arming::Method::RUDDER) {
         // option must be enabled:
         if (get_rudder_arming_type() != AP_Arming::RudderArming::ARMDISARM) {
             gcs().send_text(MAV_SEVERITY_INFO, "Rudder disarm: disabled");
@@ -343,3 +361,16 @@ void AP_Arming_Plane::update_soft_armed()
     }
 }
 
+/*
+  extra plane mission checks
+ */
+bool AP_Arming_Plane::mission_checks(bool report)
+{
+    // base checks
+    bool ret = AP_Arming::mission_checks(report);
+    if (plane.mission.get_landing_sequence_start() > 0 && plane.g.rtl_autoland == RtlAutoland::RTL_DISABLE) {
+        ret = false;
+        check_failed(ARMING_CHECK_MISSION, report, "DO_LAND_START set and RTL_AUTOLAND disabled");
+    }
+    return ret;
+}

@@ -112,11 +112,7 @@ AP_Notify *AP_Notify::_singleton;
 #endif
 
 #ifndef NOTIFY_LED_OVERRIDE_DEFAULT
-#ifdef HAL_BUILD_AP_PERIPH
-    #define NOTIFY_LED_OVERRIDE_DEFAULT 1       // rgb_source_t::mavlink
-#else
-    #define NOTIFY_LED_OVERRIDE_DEFAULT 0       // rgb_source_t::standard
-#endif
+#define NOTIFY_LED_OVERRIDE_DEFAULT 0       // rgb_source_t::standard
 #endif
 
 #ifndef NOTIFY_LED_LEN_DEFAULT
@@ -145,7 +141,7 @@ const AP_Param::GroupInfo AP_Notify::var_info[] = {
     // @Param: BUZZ_TYPES
     // @DisplayName: Buzzer Driver Types
     // @Description: Controls what types of Buzzer will be enabled
-    // @Bitmask: 0:Built-in buzzer, 1:DShot, 2:UAVCAN
+    // @Bitmask: 0:Built-in buzzer, 1:DShot, 2:DroneCAN
     // @User: Advanced
     AP_GROUPINFO("BUZZ_TYPES", 1, AP_Notify, _buzzer_type, BUILD_DEFAULT_BUZZER_TYPE),
 
@@ -184,7 +180,7 @@ const AP_Param::GroupInfo AP_Notify::var_info[] = {
     // @Param: LED_TYPES
     // @DisplayName: LED Driver Types
     // @Description: Controls what types of LEDs will be enabled
-    // @Bitmask: 0:Built-in LED, 1:Internal ToshibaLED, 2:External ToshibaLED, 3:External PCA9685, 4:Oreo LED, 5:UAVCAN, 6:NCP5623 External, 7:NCP5623 Internal, 8:NeoPixel, 9:ProfiLED, 10:Scripting, 11:DShot, 12:ProfiLED_SPI
+    // @Bitmask: 0:Built-in LED, 1:Internal ToshibaLED, 2:External ToshibaLED, 3:External PCA9685, 4:Oreo LED, 5:DroneCAN, 6:NCP5623 External, 7:NCP5623 Internal, 8:NeoPixel, 9:ProfiLED, 10:Scripting, 11:DShot, 12:ProfiLED_SPI
     // @User: Advanced
     AP_GROUPINFO("LED_TYPES", 6, AP_Notify, _led_type, BUILD_DEFAULT_LED_TYPE),
 
@@ -354,7 +350,7 @@ void AP_Notify::add_backends(void)
 // ChibiOS noise makers
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
     ADD_BACKEND(new Buzzer());
-#if defined(HAL_PWM_ALARM) || HAL_DSHOT_ALARM
+#if HAL_PWM_COUNT > 0 || HAL_DSHOT_ALARM
     ADD_BACKEND(new AP_ToneAlarm());
 #endif
 
