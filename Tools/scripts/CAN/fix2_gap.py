@@ -11,7 +11,7 @@ from argparse import ArgumentParser
 parser = ArgumentParser(description='Fix2 gap example')
 parser.add_argument("--bitrate", default=1000000, type=int, help="CAN bit rate")
 parser.add_argument("--node-id", default=100, type=int, help="CAN node ID")
-parser.add_argument("--max-gap", default=0.25, type=int, help="max gap in seconds")
+parser.add_argument("--max-gap", default=0.25, type=float, help="max gap in seconds")
 parser.add_argument("port", default=None, type=str, help="serial port or mavcan URI")
 args = parser.parse_args()
 
@@ -26,7 +26,7 @@ last_fix2 = {}
 def handle_fix2(msg):
     nodeid = msg.transfer.source_node_id
     tstamp = msg.transfer.ts_real
-    if not nodeid in last_fix2:
+    if nodeid not in last_fix2:
         last_fix2[nodeid] = tstamp
         return
     dt = tstamp - last_fix2[nodeid]

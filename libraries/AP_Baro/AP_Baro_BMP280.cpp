@@ -14,6 +14,9 @@
  */
 #include "AP_Baro_BMP280.h"
 
+#if AP_BARO_BMP280_ENABLED
+
+#include <AP_Math/definitions.h>
 #include <utility>
 
 extern const AP_HAL::HAL &hal;
@@ -124,7 +127,7 @@ bool AP_Baro_BMP280::_init()
 
 
 
-//  acumulate a new sensor reading
+//  accumulate a new sensor reading
 void AP_Baro_BMP280::_timer(void)
 {
     uint8_t buf[6];
@@ -203,3 +206,5 @@ void AP_Baro_BMP280::_update_pressure(int32_t press_raw)
     _pressure_sum += press;
     _pressure_count++;
 }
+
+#endif  // AP_BARO_BMP280_ENABLED

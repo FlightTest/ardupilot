@@ -1,3 +1,5 @@
+#include <AP_Scripting/AP_Scripting_config.h>
+
 #if AP_SCRIPTING_ENABLED
 
 #include "AC_AttitudeControl_Multi_6DoF.h"
@@ -5,7 +7,7 @@
 #include <AP_Math/AP_Math.h>
 
 // 6DoF control is extracted from the existing copter code by treating desired angles as thrust angles rather than vehicle attitude.
-// Vehicle attitude is then set separately, typically the vehicle would matain 0 roll and pitch.
+// Vehicle attitude is then set separately, typically the vehicle would maintain 0 roll and pitch.
 // rate commands result in the vehicle behaving as a ordinary copter.
 
 // run lowest level body-frame rate controller and send outputs to the motors
@@ -49,7 +51,7 @@ void AC_AttitudeControl_Multi_6DoF::input_euler_angle_roll_pitch_yaw(float euler
 }
 
 // Command a thrust vector and heading rate
-void AC_AttitudeControl_Multi_6DoF::input_thrust_vector_rate_heading(const Vector3f& thrust_vector, float heading_rate_cds)
+void AC_AttitudeControl_Multi_6DoF::input_thrust_vector_rate_heading(const Vector3f& thrust_vector, float heading_rate_cds, bool slew_yaw)
 {
     // convert thrust vector to a roll and pitch angles
     // this negates the advantage of using thrust vector control, but works just fine

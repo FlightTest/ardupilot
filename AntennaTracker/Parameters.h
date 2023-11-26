@@ -1,5 +1,7 @@
 #pragma once
 
+#define AP_PARAM_VEHICLE_NAME tracker
+
 #include <AC_PID/AC_PID.h>
 #include <AP_Param/AP_Param.h>
 
@@ -98,9 +100,9 @@ public:
         k_param_mavlink_update_rate,
         k_param_pitch_min,
         k_param_pitch_max,
-        k_param_gcs4,               // stream rates for fourth MAVLink port
-        k_param_gcs5,               // stream rates for fourth MAVLink port
-        k_param_gcs6,               // stream rates for fourth MAVLink port
+        k_param_gcs4,
+        k_param_gcs5,
+        k_param_gcs6,
 
         //
         // 200 : Radio settings
@@ -128,6 +130,8 @@ public:
         k_param_disarm_pwm,
 
         k_param_auto_opts,
+        k_param_NavEKF2,
+        k_param_NavEKF3,
 
         k_param_logger = 253, // 253 - Logging Group
 

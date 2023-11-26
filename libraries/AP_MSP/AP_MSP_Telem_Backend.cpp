@@ -22,6 +22,7 @@
 #include <RC_Channel/RC_Channel.h>
 #include <AP_Common/AP_FWVersion.h>
 #include <AP_GPS/AP_GPS.h>
+#include <AP_Notify/AP_Notify.h>
 #include <AP_OpticalFlow/AP_OpticalFlow.h>
 #include <AP_RangeFinder/AP_RangeFinder.h>
 #include <AP_RCMapper/AP_RCMapper.h>
@@ -526,7 +527,7 @@ MSPCommandResult AP_MSP_Telem_Backend::msp_process_sensor_command(uint16_t cmd_m
 void AP_MSP_Telem_Backend::msp_handle_opflow(const MSP::msp_opflow_data_message_t &pkt)
 {
 #if HAL_MSP_OPTICALFLOW_ENABLED
-    OpticalFlow *optflow = AP::opticalflow();
+    AP_OpticalFlow *optflow = AP::opticalflow();
     if (optflow == nullptr) {
         return;
     }
@@ -554,26 +555,36 @@ void AP_MSP_Telem_Backend::msp_handle_gps(const MSP::msp_gps_data_message_t &pkt
 
 void AP_MSP_Telem_Backend::msp_handle_compass(const MSP::msp_compass_data_message_t &pkt)
 {
-#if HAL_MSP_COMPASS_ENABLED
+#if AP_COMPASS_MSP_ENABLED
     AP::compass().handle_msp(pkt);
 #endif
 }
 
 void AP_MSP_Telem_Backend::msp_handle_baro(const MSP::msp_baro_data_message_t &pkt)
 {
-#if HAL_MSP_BARO_ENABLED
+#if AP_BARO_MSP_ENABLED
     AP::baro().handle_msp(pkt);
 #endif
 }
 
 void AP_MSP_Telem_Backend::msp_handle_airspeed(const MSP::msp_airspeed_data_message_t &pkt)
 {
-#if HAL_MSP_AIRSPEED_ENABLED && AP_AIRSPEED_ENABLED
+#if AP_AIRSPEED_MSP_ENABLED && AP_AIRSPEED_ENABLED
     auto *airspeed = AP::airspeed();
     if (airspeed) {
         airspeed->handle_msp(pkt);
     }
 #endif
+}
+
+uint32_t AP_MSP_Telem_Backend::get_osd_flight_mode_bitmask(void)
+{
+    // Note: we only set the BOXARM bit (bit 0) which is the same for BF, INAV and DJI VTX
+    // When armed we simply return 1 (1 == 1 << 0)
+    if (hal.util->get_soft_armed()) {
+        return 1U;
+    }
+    return 0U;
 }
 
 MSPCommandResult AP_MSP_Telem_Backend::msp_process_out_api_version(sbuf_t *dst)
@@ -827,7 +838,7 @@ MSPCommandResult AP_MSP_Telem_Backend::msp_process_out_osd_config(sbuf_t *dst)
         if (msp->_osd_item_settings[i] != nullptr) {      // ok supported
             if (msp->_osd_item_settings[i]->enabled) {    // ok enabled
                 // let's check if we need to hide this dynamically
-                if (!BIT_IS_SET(osd_hidden_items_bitmask, i)) {
+                if (!BIT_IS_SET_64(osd_hidden_items_bitmask, i)) {
                     pos = MSP_OSD_POS(msp->_osd_item_settings[i]);
                 }
             }
@@ -978,10 +989,12 @@ MSPCommandResult AP_MSP_Telem_Backend::msp_process_out_rtc(sbuf_t *dst)
 {
     tm localtime_tm {}; // year is relative to 1900
     uint64_t time_usec = 0;
+#if AP_RTC_ENABLED
     if (AP::rtc().get_utc_usec(time_usec)) { // may fail, leaving time_unix at 0
         const time_t time_sec = time_usec / 1000000;
         localtime_tm = *gmtime(&time_sec);
     }
+#endif
     const struct PACKED {
         uint16_t year;
         uint8_t mon;
@@ -1004,6 +1017,7 @@ MSPCommandResult AP_MSP_Telem_Backend::msp_process_out_rtc(sbuf_t *dst)
     return MSP_RESULT_ACK;
 }
 
+#if AP_RC_CHANNEL_ENABLED
 MSPCommandResult AP_MSP_Telem_Backend::msp_process_out_rc(sbuf_t *dst)
 {
     const RCMapper* rcmap = AP::rcmap();
@@ -1030,6 +1044,7 @@ MSPCommandResult AP_MSP_Telem_Backend::msp_process_out_rc(sbuf_t *dst)
     sbuf_write_data(dst, &rc, sizeof(rc));
     return MSP_RESULT_ACK;
 }
+#endif  // AP_RC_CHANNEL_ENABLED
 
 MSPCommandResult AP_MSP_Telem_Backend::msp_process_out_board_info(sbuf_t *dst)
 {
@@ -1137,10 +1152,14 @@ void AP_MSP_Telem_Backend::hide_osd_items(void)
             BIT_SET(osd_hidden_items_bitmask, OSD_MAIN_BATT_VOLTAGE);
         }
         // flash rtc if no time available
+#if AP_RTC_ENABLED
         uint64_t time_usec;
         if (!AP::rtc().get_utc_usec(time_usec)) {
             BIT_SET(osd_hidden_items_bitmask, OSD_RTC_DATETIME);
         }
+#else
+            BIT_SET(osd_hidden_items_bitmask, OSD_RTC_DATETIME);
+#endif
         // flash rssi if disabled
         float rssi;
         if (!get_rssi(rssi)) {
@@ -1215,6 +1234,12 @@ void AP_MSP_Telem_Backend::msp_displayport_write_string(uint8_t col, uint8_t row
     memcpy(packet.text, string, len);
 
     msp_send_packet(MSP_DISPLAYPORT, MSP::MSP_V1, &packet, 4 + len, false);
+}
+
+void AP_MSP_Telem_Backend::msp_displayport_set_options(const uint8_t font_index, const uint8_t screen_resolution)
+{
+    const uint8_t subcmd[] = { msp_displayport_subcmd_e::MSP_DISPLAYPORT_SET_OPTIONS, font_index, screen_resolution };
+    msp_send_packet(MSP_DISPLAYPORT, MSP::MSP_V1, subcmd, sizeof(subcmd), false);
 }
 #endif //HAL_WITH_MSP_DISPLAYPORT
 bool AP_MSP_Telem_Backend::displaying_stats_screen() const

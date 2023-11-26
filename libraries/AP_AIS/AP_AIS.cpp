@@ -19,9 +19,16 @@
 
 #include "AP_AIS.h"
 
-#if HAL_AIS_ENABLED
+#if AP_AIS_ENABLED
+
+#include <AP_Vehicle/AP_Vehicle_Type.h>
+
+#define AP_AIS_DUMMY_METHODS_ENABLED ((AP_AIS_ENABLED == 2) && !APM_BUILD_TYPE(APM_BUILD_Rover))
+
+#if !AP_AIS_DUMMY_METHODS_ENABLED
 
 #include <AP_Logger/AP_Logger.h>
+#include <AP_SerialManager/AP_SerialManager.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include <GCS_MAVLink/GCS.h>
 
@@ -63,7 +70,18 @@ const AP_Param::GroupInfo AP_AIS::var_info[] = {
 // constructor
 AP_AIS::AP_AIS()
 {
+    if (_singleton != nullptr) {
+        AP_HAL::panic("AIS must be singleton");
+    }
+    _singleton = this;
+
     AP_Param::setup_object_defaults(this, var_info);
+}
+
+// return true if AIS is enabled
+bool AP_AIS::enabled() const
+{ 
+    return AISType(_type.get()) != AISType::NONE;
 }
 
 // Initialize the AIS object and prepare it for use
@@ -123,7 +141,7 @@ void AP_AIS::update()
                 uint8_t msg_parts[_incoming.num - 1];
                 for  (uint8_t i = 0; i < AIVDM_BUFFER_SIZE; i++) {
                     // look for the rest of the message from the start of the buffer
-                    // we assume the mesage has be received in the correct order
+                    // we assume the message has be received in the correct order
                     if (_AIVDM_buffer[i].num == (index + 1) && _AIVDM_buffer[i].total == _incoming.total && _AIVDM_buffer[i].ID == _incoming.ID) {
                         msg_parts[index] = i;
                         index++;
@@ -291,12 +309,12 @@ bool AP_AIS::get_vessel_index(uint32_t mmsi, uint16_t &index, uint32_t lat, uint
         return false;
     }
 
-    struct Location current_loc;
+    Location current_loc;
     if (!AP::ahrs().get_location(current_loc)) {
         return false;
     }
 
-    struct Location loc;
+    Location loc;
     float dist;
     float max_dist = 0;
     for (uint16_t i = 0; i < list_size; i++) {
@@ -331,11 +349,11 @@ void AP_AIS::clear_list_item(uint16_t index)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Functions for decoding AIVDM payload mesages
+// Functions for decoding AIVDM payload messages
 
 bool AP_AIS::payload_decode(const char *payload)
 {
-    // the mesage type is defined by the first character
+    // the message type is defined by the first character
     const uint8_t type = payload_char_decode(payload[0]);
 
     switch (type) {
@@ -656,7 +674,7 @@ uint32_t AP_AIS::get_bits(const char *payload, uint16_t low, uint16_t high)
 }
 
 // read the specified bits from the char array each char giving 6 bits
-// As the values are a arbitrary length the sign bit is in the wrong place for standard length varables
+// As the values are a arbitrary length the sign bit is in the wrong place for standard length variables
 int32_t AP_AIS::get_bits_signed(const char *payload, uint16_t low, uint16_t high)
 {
     uint32_t value = get_bits(payload, low, high);
@@ -804,4 +822,30 @@ bool AP_AIS::decode_latest_term()
     return false;
 }
 
-#endif  // HAL_AIS_ENABLED
+// get singleton instance
+AP_AIS *AP_AIS::get_singleton() {
+    return _singleton;
+}
+
+#else
+// Dummy methods are required to allow functionality to be enabled for Rover.
+// It is not possible to compile in or out the full code based on vehicle type due to limitations
+// of the handling of `APM_BUILD_TYPE` define.
+// These dummy methods minimise flash cost in that case.
+
+const AP_Param::GroupInfo AP_AIS::var_info[] = { AP_GROUPEND };
+AP_AIS::AP_AIS() {};
+
+bool AP_AIS::enabled() const { return false; }
+
+void AP_AIS::init() {};
+void AP_AIS::update() {};
+void AP_AIS::send(mavlink_channel_t chan) {};
+
+AP_AIS *AP_AIS::get_singleton() { return nullptr; }
+
+#endif // AP_AIS_DUMMY_METHODS_ENABLED
+
+AP_AIS *AP_AIS::_singleton;
+
+#endif  // AP_AIS_ENABLED

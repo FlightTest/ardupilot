@@ -3,7 +3,6 @@
 #include <AP_Common/AP_Common.h>
 #include <AP_Common/Location.h>
 #include <AP_Math/AP_Math.h>
-#include <AP_HAL/AP_HAL.h>
 
 /*
  * BendyRuler avoidance algorithm for avoiding the polygon and circular fence and dynamic objects detected by the proximity sensor
@@ -12,9 +11,7 @@ class AP_OABendyRuler {
 public:
     AP_OABendyRuler();
 
-    /* Do not allow copies */
-    AP_OABendyRuler(const AP_OABendyRuler &other) = delete;
-    AP_OABendyRuler &operator=(const AP_OABendyRuler&) = delete;
+    CLASS_NO_COPY(AP_OABendyRuler);  /* Do not allow copies */
 
     // send configuration info stored in front end parameters
     void set_config(float margin_max) { _margin_max = MAX(margin_max, 0.0f); }
@@ -77,7 +74,7 @@ private:
     // BendyRuler parameters
     AP_Float _lookahead;            // object avoidance will look this many meters ahead of vehicle
     AP_Float _bendy_ratio;          // object avoidance will avoid major directional change if change in margin ratio is less than this param
-    AP_Int16 _bendy_angle;          // object avoidance will try avoding change in direction over this much angle
+    AP_Int16 _bendy_angle;          // object avoidance will try avoiding change in direction over this much angle
     AP_Int8  _bendy_type;           // Type of BendyRuler to run
     
     // internal variables used by background thread
